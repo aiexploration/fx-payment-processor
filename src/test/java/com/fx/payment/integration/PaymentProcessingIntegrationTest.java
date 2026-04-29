@@ -4,6 +4,7 @@ import com.fx.payment.config.JmsConfig;
 import com.fx.payment.entity.PaymentMessage;
 import com.fx.payment.entity.PaymentStatus;
 import com.fx.payment.repository.PaymentMessageRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +36,14 @@ class PaymentProcessingIntegrationTest {
 
     @Autowired private JmsTemplate jmsTemplate;
     @Autowired private PaymentMessageRepository repository;
+
+    @BeforeEach
+    void resetTestState() {
+        drainQueue(JmsConfig.INBOUND_QUEUE);
+        drainQueue(JmsConfig.VALID_QUEUE);
+        drainQueue(JmsConfig.INVALID_QUEUE);
+        repository.deleteAll();
+    }
 
     // ── Valid message flow ────────────────────────────────────────────────
 
@@ -157,6 +166,18 @@ class PaymentProcessingIntegrationTest {
         try (var is = getClass().getClassLoader().getResourceAsStream(path)) {
             assertThat(is).as("Resource not found: " + path).isNotNull();
             return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private void drainQueue(String queueName) {
+        long originalTimeout = jmsTemplate.getReceiveTimeout();
+        jmsTemplate.setReceiveTimeout(100);
+        try {
+            while (jmsTemplate.receiveAndConvert(queueName) != null) {
+                // Drain any message left by a previous test.
+            }
+        } finally {
+            jmsTemplate.setReceiveTimeout(originalTimeout);
         }
     }
 }
