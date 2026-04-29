@@ -38,8 +38,10 @@ if [ "$JAVA_VER" -lt 21 ]; then
 fi
 
 echo -e "${GREEN}Starting application with embedded broker + H2 database...${NC}"
-echo -e "${CYAN}  H2 Console  :  http://localhost:8080/h2-console${NC}"
-echo -e "${CYAN}  JDBC URL    :  jdbc:h2:mem:fxpayments${NC}"
+echo -e "${CYAN}  H2 Web UI   :  http://localhost:8082${NC}"
+echo -e "${CYAN}  JDBC URL    :  jdbc:h2:tcp://localhost:9092/mem:fxpayments${NC}"
+echo -e "${CYAN}  H2 User     :  sa / <blank password>${NC}"
+echo -e "${CYAN}  MQ TCP URL  :  tcp://localhost:61616${NC}"
 echo -e "${CYAN}  MQ Inbound  :  fx.pacs009.inbound${NC}"
 echo -e "${CYAN}  MQ Valid    :  fx.payment.valid${NC}"
 echo -e "${CYAN}  MQ Invalid  :  fx.payment.invalid${NC}"

@@ -106,6 +106,33 @@ class PaymentProcessingIntegrationTest {
     }
 
     @Test
+    @DisplayName("Manual test: put pacs.009 message and print output domain XML")
+    void manualValidPacsMessageShouldPrintOutputDomainXml() throws Exception {
+        String rawXml = loadXml("messages/valid-pacs009.xml");
+
+        jmsTemplate.convertAndSend(JmsConfig.INBOUND_QUEUE, rawXml);
+
+        await().atMost(10, TimeUnit.SECONDS)
+                .untilAsserted(() -> {
+                    var record = repository.findByTransactionId("TXN-20240415-001");
+                    assertThat(record).isPresent();
+                    assertThat(record.get().getStatus()).isEqualTo(PaymentStatus.PROCESSED);
+                });
+
+        String domainXml = (String) jmsTemplate.receiveAndConvert(JmsConfig.VALID_QUEUE);
+
+        assertThat(domainXml).isNotNull();
+        assertThat(domainXml).contains("DomainPayment");
+        assertThat(domainXml).contains("TXN-20240415-001");
+
+        System.out.println();
+        System.out.println("===== fx.payment.valid output begin =====");
+        System.out.println(domainXml);
+        System.out.println("===== fx.payment.valid output end =====");
+        System.out.println();
+    }
+
+    @Test
     @DisplayName("Invalid pacs.009 (missing TxId) should be stored with INVALID status")
     void invalidMissingTxIdShouldBeStoredAsInvalid() throws Exception {
         String rawXml = loadXml("messages/invalid-pacs009-missing-txid.xml");

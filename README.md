@@ -86,9 +86,10 @@ src/main/resources/
 This starts the app with:
 - **Embedded ActiveMQ Artemis** – in-process broker, queues auto-created
 - **H2 in-memory database** – schema auto-created from JPA entities
-- **H2 Console** → [http://localhost:8080/h2-console](http://localhost:8080/h2-console)
-  - JDBC URL: `jdbc:h2:mem:fxpayments`
+- **H2 Web Console** → [http://localhost:8082](http://localhost:8082)
+  - JDBC URL: `jdbc:h2:tcp://localhost:9092/mem:fxpayments`
   - User: `sa` | Password: _(empty)_
+- **Embedded Artemis TCP** → `tcp://localhost:61616`
 
 ### Option B – Production-like (Docker required)
 
@@ -145,7 +146,7 @@ make test          # or: mvn test
 | `PaymentOrchestrationServiceTest` | Unit (Mockito) | Pipeline orchestration, error routing |
 | `PaymentProcessingIntegrationTest` | Integration | End-to-end: MQ → process → DB + MQ assert |
 
-### Send test messages manually (with Docker/postgres profile running)
+### Send test messages manually (with embedded or Docker profile running)
 
 ```bash
 # Send valid USD/GBP FX settlement
@@ -158,7 +159,10 @@ java -cp target/fx-payment-processor-1.0.0-SNAPSHOT.jar \
 # ... same command with invalid-pacs009-missing-txid.xml
 ```
 
-Or use the Artemis web console at http://localhost:8161 → Queues → `fx.pacs009.inbound` → Send Message.
+In embedded mode there is no Artemis web console, but the broker is exposed at
+`tcp://localhost:61616` while the SwiftPay JVM is running. Use a JMS browser or
+client that supports Artemis Core/JMS to inspect `fx.pacs009.inbound`,
+`fx.payment.valid`, and `fx.payment.invalid`.
 
 ---
 
