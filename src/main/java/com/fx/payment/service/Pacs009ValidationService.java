@@ -5,7 +5,6 @@ import com.fx.payment.model.pacs009.Pacs009Document;
 import jakarta.xml.bind.JAXBContext;
 import jakarta.xml.bind.JAXBException;
 import jakarta.xml.bind.Unmarshaller;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.ClassPathResource;
@@ -32,15 +31,18 @@ import java.util.List;
  */
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class Pacs009ValidationService {
 
     private static final String XSD_PATH = "xsd/pacs.009.001.08.xsd";
 
-    @Qualifier("pacs009JaxbContext")
     private final JAXBContext jaxbContext;
 
     private Schema schema;
+
+    public Pacs009ValidationService(
+            @Qualifier("pacs009JaxbContext") JAXBContext jaxbContext) {
+        this.jaxbContext = jaxbContext;
+    }
 
     /**
      * Validates {@code rawXml} against the pacs.009.001.08 XSD.

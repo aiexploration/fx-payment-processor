@@ -4,6 +4,7 @@ import com.fx.payment.config.RabbitConfig;
 import com.fx.payment.entity.PaymentMessage;
 import com.fx.payment.entity.PaymentStatus;
 import com.fx.payment.repository.PaymentMessageRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -34,6 +35,14 @@ class PaymentProcessingIntegrationTest {
 
     @Autowired private RabbitTemplate rabbitTemplate;
     @Autowired private PaymentMessageRepository repository;
+
+    @BeforeEach
+    void resetTestState() {
+        drainQueue(JmsConfig.INBOUND_QUEUE);
+        drainQueue(JmsConfig.VALID_QUEUE);
+        drainQueue(JmsConfig.INVALID_QUEUE);
+        repository.deleteAll();
+    }
 
     // ── Valid message flow ────────────────────────────────────────────────
 
@@ -93,6 +102,33 @@ class PaymentProcessingIntegrationTest {
         assertThat(domainXml).contains("DomainPayment");
         assertThat(domainXml).contains("TXN-20240415-002");
         assertThat(domainXml).contains("JPY");
+    }
+
+    @Test
+    @DisplayName("Manual test: put pacs.009 message and print output domain XML")
+    void manualValidPacsMessageShouldPrintOutputDomainXml() throws Exception {
+        String rawXml = loadXml("messages/valid-pacs009.xml");
+
+        jmsTemplate.convertAndSend(JmsConfig.INBOUND_QUEUE, rawXml);
+
+        await().atMost(10, TimeUnit.SECONDS)
+                .untilAsserted(() -> {
+                    var record = repository.findByTransactionId("TXN-20240415-001");
+                    assertThat(record).isPresent();
+                    assertThat(record.get().getStatus()).isEqualTo(PaymentStatus.PROCESSED);
+                });
+
+        String domainXml = (String) jmsTemplate.receiveAndConvert(JmsConfig.VALID_QUEUE);
+
+        assertThat(domainXml).isNotNull();
+        assertThat(domainXml).contains("DomainPayment");
+        assertThat(domainXml).contains("TXN-20240415-001");
+
+        System.out.println();
+        System.out.println("===== fx.payment.valid output begin =====");
+        System.out.println(domainXml);
+        System.out.println("===== fx.payment.valid output end =====");
+        System.out.println();
     }
 
     @Test
@@ -156,6 +192,18 @@ class PaymentProcessingIntegrationTest {
         try (var is = getClass().getClassLoader().getResourceAsStream(path)) {
             assertThat(is).as("Resource not found: " + path).isNotNull();
             return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private void drainQueue(String queueName) {
+        long originalTimeout = jmsTemplate.getReceiveTimeout();
+        jmsTemplate.setReceiveTimeout(100);
+        try {
+            while (jmsTemplate.receiveAndConvert(queueName) != null) {
+                // Drain any message left by a previous test.
+            }
+        } finally {
+            jmsTemplate.setReceiveTimeout(originalTimeout);
         }
     }
 }
