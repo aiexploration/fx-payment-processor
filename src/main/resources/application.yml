@@ -30,11 +30,26 @@ spring:
         format_sql: true
         dialect: org.hibernate.dialect.H2Dialect
 
-  # ── H2 Console (open http://localhost:8080/h2-console in browser) ────────
+  # ── H2 console settings. The standalone H2 web console is exposed by
+  # ── EmbeddedInspectionConfig at http://localhost:8082.
   h2:
     console:
       enabled: true
       path: /h2-console
+
+# ── Embedded inspection ports (available only while this JVM is running) ──
+fx:
+  inspection:
+    h2:
+      enabled: true
+      tcp-port: 9092
+      web:
+        enabled: true
+        web-port: 8082
+    artemis:
+      enabled: true
+      host: 127.0.0.1
+      port: 61616
 
 # ── Logging ──────────────────────────────────────────────────────────────
 logging:

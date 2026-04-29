@@ -17,11 +17,8 @@ import java.nio.file.Paths;
  *     -Dexec.args="src/test/resources/messages/valid-pacs009.xml"
  * </pre>
  *
- * For embedded mode the broker URL is vm://0 (in-process) which only works
- * within the same JVM.  Use the Spring Boot actuator /send endpoint or the
- * H2 console instead for interactive testing.
- *
- * For the Docker/postgres profile, point BROKER_URL to tcp://localhost:61616.
+ * In embedded mode SwiftPay exposes the embedded broker at tcp://localhost:61616
+ * while the JVM is running.
  */
 public class TestMessageSender {
 

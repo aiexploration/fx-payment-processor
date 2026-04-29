@@ -8,7 +8,6 @@ import com.fx.payment.model.pacs009.Pacs009Document;
 import jakarta.xml.bind.JAXBContext;
 import jakarta.xml.bind.JAXBException;
 import jakarta.xml.bind.Marshaller;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -27,11 +26,14 @@ import java.time.format.DateTimeFormatter;
  */
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class PaymentTransformationService {
 
-    @Qualifier("domainJaxbContext")
     private final JAXBContext domainJaxbContext;
+
+    public PaymentTransformationService(
+            @Qualifier("domainJaxbContext") JAXBContext domainJaxbContext) {
+        this.domainJaxbContext = domainJaxbContext;
+    }
 
     /**
      * Maps a validated pacs.009 document to a {@link DomainPayment}.
