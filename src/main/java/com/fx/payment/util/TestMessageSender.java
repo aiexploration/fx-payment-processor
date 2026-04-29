@@ -1,38 +1,41 @@
 package com.fx.payment.util;
 
-import org.apache.activemq.artemis.jms.client.ActiveMQConnectionFactory;
+import com.rabbitmq.client.BuiltinExchangeType;
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.ConnectionFactory;
+import lombok.extern.slf4j.Slf4j;
 
-import jakarta.jms.*;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
 /**
- * Standalone utility to send a pacs.009 XML file to the inbound JMS queue.
+ * Standalone utility to send a pacs.009 XML file to the inbound RabbitMQ queue.
  *
- * Usage (while the app is running with embedded broker):
+ * Usage (while the app is running with Docker RabbitMQ):
  * <pre>
  *   mvn exec:java \
  *     -Dexec.mainClass="com.fx.payment.util.TestMessageSender" \
  *     -Dexec.args="src/test/resources/messages/valid-pacs009.xml"
  * </pre>
  *
- * For embedded mode the broker URL is vm://0 (in-process) which only works
- * within the same JVM.  Use the Spring Boot actuator /send endpoint or the
- * H2 console instead for interactive testing.
- *
- * For the Docker/postgres profile, point BROKER_URL to tcp://localhost:61616.
+ * For Docker mode the broker URL is localhost:5672.
+ * Use the Spring Boot actuator /send endpoint for interactive testing.
  */
+@Slf4j
 public class TestMessageSender {
 
-    private static final String BROKER_URL   = System.getProperty("brokerUrl",  "tcp://localhost:61616");
-    private static final String BROKER_USER  = System.getProperty("brokerUser", "artemis");
-    private static final String BROKER_PASS  = System.getProperty("brokerPass", "artemis");
-    private static final String QUEUE_NAME   = "fx.pacs009.inbound";
+    private static final String BROKER_HOST = System.getProperty("brokerHost", "localhost");
+    private static final int BROKER_PORT = Integer.getInteger("brokerPort", 5672);
+    private static final String BROKER_USER = System.getProperty("brokerUser", "guest");
+    private static final String BROKER_PASS = System.getProperty("brokerPass", "guest");
+    private static final String EXCHANGE_NAME = "fx.payment.exchange";
+    private static final String ROUTING_KEY = "pacs009.inbound";
 
     public static void main(String[] args) throws Exception {
         if (args.length < 1) {
-            System.err.println("Usage: TestMessageSender <path-to-xml-file>");
+            log.error("Usage: TestMessageSender <path-to-xml-file>");
             System.exit(1);
         }
 
@@ -41,25 +44,29 @@ public class TestMessageSender {
         try {
             rawXml = Files.readString(Paths.get(xmlFilePath));
         } catch (IOException e) {
-            System.err.println("Cannot read file: " + xmlFilePath);
+            log.error("Cannot read file: {}", xmlFilePath, e);
             System.exit(1);
             return;
         }
 
-        try (ActiveMQConnectionFactory cf = new ActiveMQConnectionFactory(BROKER_URL, BROKER_USER, BROKER_PASS);
-             Connection conn = cf.createConnection();
-             Session session = conn.createSession(false, Session.AUTO_ACKNOWLEDGE)) {
+        ConnectionFactory factory = new ConnectionFactory();
+        factory.setHost(BROKER_HOST);
+        factory.setPort(BROKER_PORT);
+        factory.setUsername(BROKER_USER);
+        factory.setPassword(BROKER_PASS);
 
-            conn.start();
-            Destination dest = session.createQueue(QUEUE_NAME);
-            MessageProducer producer = session.createProducer(dest);
-            TextMessage msg = session.createTextMessage(rawXml);
-            producer.send(msg);
+        try (Connection conn = factory.newConnection();
+             Channel channel = conn.createChannel()) {
 
-            System.out.println("✓ Message sent to " + QUEUE_NAME);
-            System.out.println("  Broker : " + BROKER_URL);
-            System.out.println("  File   : " + xmlFilePath);
-            System.out.println("  Size   : " + rawXml.length() + " chars");
+            // Declare exchange (must match the one in RabbitConfig)
+            channel.exchangeDeclare(EXCHANGE_NAME, BuiltinExchangeType.TOPIC, true);
+
+            // Publish message
+            channel.basicPublish(EXCHANGE_NAME, ROUTING_KEY, null, rawXml.getBytes());
+            log.info("Sent message to exchange='{}' routingKey='{}'", EXCHANGE_NAME, ROUTING_KEY);
+            log.info("  Broker : {}:{}", BROKER_HOST, BROKER_PORT);
+            log.info("  File   : {}", xmlFilePath);
+            log.info("  Size   : {} chars", rawXml.length());
         }
     }
 }

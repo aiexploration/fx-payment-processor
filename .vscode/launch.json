@@ -1,0 +1,14 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Spring Boot-FxPaymentProcessorApplication<fx-payment-processor>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.fx.payment.FxPaymentProcessorApplication",
+            "projectName": "fx-payment-processor",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        }
+    ]
+}

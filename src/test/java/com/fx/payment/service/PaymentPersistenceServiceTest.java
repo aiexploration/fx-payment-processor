@@ -19,7 +19,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.*;
 
 /**
- * Tests {@link PaymentPersistenceService} using an in-memory H2 database.
+ * Tests {@link PaymentPersistenceService} using PostgreSQL.
  *
  * {@code @DataJpaTest} starts only the JPA slice (no JMS, no full context).
  */

@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * FX Payment Processor
  *
  * Ingests ISO 20022 pacs.009 (Financial Institution Credit Transfer) messages
- * from an ActiveMQ queue, validates them against XSD, persists to DB with a
+ * from a RabbitMQ queue, validates them against XSD, persists to DB with a
  * generated UUID, transforms to a domain Payment object, and routes to the
  * appropriate outbound queue.
  *

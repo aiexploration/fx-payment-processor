@@ -3,31 +3,31 @@ version: '3.9'
 # ══════════════════════════════════════════════════════════════════════════
 # FX Payment Processor – Infrastructure Stack
 # Open-source components only:
-#   • Apache ActiveMQ Artemis  (JMS broker)
+#   • RabbitMQ                 (message broker)
 #   • PostgreSQL               (database)
 #
 # Usage:
 #   docker-compose up -d               → start infrastructure
 #   docker-compose down -v             → stop and remove volumes
-#   docker-compose logs -f artemis     → tail broker logs
+#   docker-compose logs -f rabbitmq    → tail broker logs
 # ══════════════════════════════════════════════════════════════════════════
 
 services:
 
-  # ── ActiveMQ Artemis ─────────────────────────────────────────────────────
-  artemis:
-    image: apache/activemq-artemis:2.31.2
-    container_name: fx-artemis
+  # ── RabbitMQ ────────────────────────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: fx-rabbitmq
     ports:
-      - "61616:61616"   # CORE/AMQP/OpenWire
-      - "8161:8161"     # Web console  →  http://localhost:8161 (admin/admin)
+      - "5672:5672"     # AMQP
+      - "15672:15672"   # Management UI → http://localhost:15672 (guest/guest)
     environment:
-      ARTEMIS_USER: artemis
-      ARTEMIS_PASSWORD: artemis
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
     volumes:
-      - artemis-data:/var/lib/artemis-instance
+      - rabbitmq-data:/var/lib/rabbitmq
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8161/"]
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -51,5 +51,5 @@ services:
       retries: 10
 
 volumes:
-  artemis-data:
+  rabbitmq-data:
   postgres-data:

@@ -1,21 +1,26 @@
 spring:
-  artemis:
-    mode: embedded
-    embedded:
-      enabled: true
-      persistent: false
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
   datasource:
-    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
+    url: jdbc:postgresql://localhost:5432/fxpayments
+    username: fxuser
+    password: fxpassword
+    driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
       ddl-auto: create-drop
     show-sql: true
-  jms:
-    template:
-      receive-timeout: 2000   # 2s timeout so receiveAndConvert doesn't block indefinitely
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  rabbitmq:
+    listener:
+      simple:
+        acknowledge-mode: auto
+        prefetch: 10
 
 logging:
   level:
