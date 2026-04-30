@@ -38,9 +38,9 @@ class PaymentProcessingIntegrationTest {
 
     @BeforeEach
     void resetTestState() {
-        drainQueue(JmsConfig.INBOUND_QUEUE);
-        drainQueue(JmsConfig.VALID_QUEUE);
-        drainQueue(JmsConfig.INVALID_QUEUE);
+        drainQueue(RabbitConfig.INBOUND_QUEUE);
+        drainQueue(RabbitConfig.VALID_QUEUE);
+        drainQueue(RabbitConfig.INVALID_QUEUE);
         repository.deleteAll();
     }
 
@@ -109,7 +109,7 @@ class PaymentProcessingIntegrationTest {
     void manualValidPacsMessageShouldPrintOutputDomainXml() throws Exception {
         String rawXml = loadXml("messages/valid-pacs009.xml");
 
-        jmsTemplate.convertAndSend(JmsConfig.INBOUND_QUEUE, rawXml);
+        jmsTemplate.convertAndSend(RabbitConfig.INBOUND_QUEUE, rawXml);
 
         await().atMost(10, TimeUnit.SECONDS)
                 .untilAsserted(() -> {
@@ -118,7 +118,7 @@ class PaymentProcessingIntegrationTest {
                     assertThat(record.get().getStatus()).isEqualTo(PaymentStatus.PROCESSED);
                 });
 
-        String domainXml = (String) jmsTemplate.receiveAndConvert(JmsConfig.VALID_QUEUE);
+        String domainXml = (String) jmsTemplate.receiveAndConvert(RabbitConfig.VALID_QUEUE);
 
         assertThat(domainXml).isNotNull();
         assertThat(domainXml).contains("DomainPayment");
