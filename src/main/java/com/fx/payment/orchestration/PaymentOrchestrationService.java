@@ -12,7 +12,6 @@ import com.fx.payment.service.PaymentTransformationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Orchestrates the end-to-end processing pipeline for a single pacs.009 message:
@@ -58,9 +57,10 @@ public class PaymentOrchestrationService {
 
             // ── Step 3: Transform ─────────────────────────────────────────
             DomainPayment domain = transformationService.toDomainPayment(doc, saved);
+            String domainXml = transformationService.toXml(domain);
 
             // ── Step 4: Route to valid queue ──────────────────────────────
-            routingService.routeValid(domain);
+            routingService.routeValid(domainXml, saved.getId().toString());
 
             // ── Step 5: Update status ─────────────────────────────────────
             persistenceService.updateStatus(saved.getId(), PaymentStatus.PROCESSED);

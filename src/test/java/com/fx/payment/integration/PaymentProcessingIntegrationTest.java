@@ -7,6 +7,8 @@ import com.fx.payment.repository.PaymentMessageRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.amqp.core.MessageBuilder;
+import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -20,14 +22,8 @@ import static org.assertj.core.api.Assertions.*;
 import static org.awaitility.Awaitility.*;
 
 /**
- * End-to-end integration test using the full Spring Boot context with:
- * <ul>
- *   <li>RabbitMQ (Docker)</li>
- *   <li>PostgreSQL (Docker)</li>
- * </ul>
- *
- * Messages are sent directly to the inbound RabbitMQ queue and the resulting
- * database state is asserted after async processing completes.
+ * End-to-end integration tests. Requires the Docker Compose stack to be running:
+ *   docker-compose up -d
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -38,30 +34,27 @@ class PaymentProcessingIntegrationTest {
 
     @BeforeEach
     void resetTestState() {
-        drainQueue(JmsConfig.INBOUND_QUEUE);
-        drainQueue(JmsConfig.VALID_QUEUE);
-        drainQueue(JmsConfig.INVALID_QUEUE);
+        drainQueue(RabbitConfig.INBOUND_QUEUE);
+        drainQueue(RabbitConfig.VALID_QUEUE);
+        drainQueue(RabbitConfig.INVALID_QUEUE);
         repository.deleteAll();
     }
-
-    // ── Valid message flow ────────────────────────────────────────────────
 
     @Test
     @DisplayName("Valid pacs.009 (USD/GBP) should be stored with PROCESSED status")
     void validUsdGbpMessageShouldBeStoredAsProcessed() throws Exception {
         String rawXml = loadXml("messages/valid-pacs009.xml");
 
-        rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE_NAME, RabbitConfig.ROUTING_KEY_INBOUND, rawXml);
+        sendXml(rawXml);
 
-        await().atMost(10, TimeUnit.SECONDS)
-                .untilAsserted(() -> {
-                    var record = repository.findByTransactionId("TXN-20240415-001");
-                    assertThat(record).isPresent();
-                    assertThat(record.get().getStatus()).isEqualTo(PaymentStatus.PROCESSED);
-                    assertThat(record.get().getSettlementCurrency()).isEqualTo("USD");
-                    assertThat(record.get().getDebtorBic()).isEqualTo("BARCGB22");
-                    assertThat(record.get().getId()).isNotNull();
-                });
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            var record = repository.findByTransactionId("TXN-20240415-001");
+            assertThat(record).isPresent();
+            assertThat(record.get().getStatus()).isEqualTo(PaymentStatus.PROCESSED);
+            assertThat(record.get().getSettlementCurrency()).isEqualTo("USD");
+            assertThat(record.get().getDebtorBic()).isEqualTo("BARCGB22");
+            assertThat(record.get().getId()).isNotNull();
+        });
     }
 
     @Test
@@ -69,15 +62,14 @@ class PaymentProcessingIntegrationTest {
     void validEurJpyMessageShouldBeStoredAsProcessed() throws Exception {
         String rawXml = loadXml("messages/valid-pacs009-eurjpy.xml");
 
-        rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE_NAME, RabbitConfig.ROUTING_KEY_INBOUND, rawXml);
+        sendXml(rawXml);
 
-        await().atMost(10, TimeUnit.SECONDS)
-                .untilAsserted(() -> {
-                    var record = repository.findByTransactionId("TXN-20240415-002");
-                    assertThat(record).isPresent();
-                    assertThat(record.get().getStatus()).isEqualTo(PaymentStatus.PROCESSED);
-                    assertThat(record.get().getSettlementCurrency()).isEqualTo("JPY");
-                });
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            var record = repository.findByTransactionId("TXN-20240415-002");
+            assertThat(record).isPresent();
+            assertThat(record.get().getStatus()).isEqualTo(PaymentStatus.PROCESSED);
+            assertThat(record.get().getSettlementCurrency()).isEqualTo("JPY");
+        });
     }
 
     @Test
@@ -85,23 +77,17 @@ class PaymentProcessingIntegrationTest {
     void validMessageShouldProduceDomainPaymentOnValidQueue() throws Exception {
         String rawXml = loadXml("messages/valid-pacs009-eurjpy.xml");
 
-        rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE_NAME, RabbitConfig.ROUTING_KEY_INBOUND, rawXml);
+        sendXml(rawXml);
 
-        // Wait for the message to be processed and appear on the valid queue
-        await().atMost(10, TimeUnit.SECONDS)
-                .untilAsserted(() -> {
-                    // First confirm DB state so we know processing is done
-                    var record = repository.findByTransactionId("TXN-20240415-002");
-                    assertThat(record).isPresent();
-                    assertThat(record.get().getStatus()).isEqualTo(PaymentStatus.PROCESSED);
-                });
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            var record = repository.findByTransactionId("TXN-20240415-002");
+            assertThat(record).isPresent();
+            assertThat(record.get().getStatus()).isEqualTo(PaymentStatus.PROCESSED);
+        });
 
-        // Now read from the valid queue
-        String domainXml = (String) rabbitTemplate.receiveAndConvert(RabbitConfig.VALID_QUEUE);
-        assertThat(domainXml).isNotNull();
-        assertThat(domainXml).contains("DomainPayment");
-        assertThat(domainXml).contains("TXN-20240415-002");
-        assertThat(domainXml).contains("JPY");
+        var msg = rabbitTemplate.receive(RabbitConfig.VALID_QUEUE, 2000);
+        String domainXml = msg == null ? null : new String(msg.getBody(), StandardCharsets.UTF_8);
+        assertThat(domainXml).isNotNull().contains("DomainPayment").contains("TXN-20240415-002").contains("JPY");
     }
 
     @Test
@@ -109,20 +95,17 @@ class PaymentProcessingIntegrationTest {
     void manualValidPacsMessageShouldPrintOutputDomainXml() throws Exception {
         String rawXml = loadXml("messages/valid-pacs009.xml");
 
-        jmsTemplate.convertAndSend(JmsConfig.INBOUND_QUEUE, rawXml);
+        sendXml(rawXml);
 
-        await().atMost(10, TimeUnit.SECONDS)
-                .untilAsserted(() -> {
-                    var record = repository.findByTransactionId("TXN-20240415-001");
-                    assertThat(record).isPresent();
-                    assertThat(record.get().getStatus()).isEqualTo(PaymentStatus.PROCESSED);
-                });
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            var record = repository.findByTransactionId("TXN-20240415-001");
+            assertThat(record).isPresent();
+            assertThat(record.get().getStatus()).isEqualTo(PaymentStatus.PROCESSED);
+        });
 
-        String domainXml = (String) jmsTemplate.receiveAndConvert(JmsConfig.VALID_QUEUE);
-
-        assertThat(domainXml).isNotNull();
-        assertThat(domainXml).contains("DomainPayment");
-        assertThat(domainXml).contains("TXN-20240415-001");
+        var msg = rabbitTemplate.receive(RabbitConfig.VALID_QUEUE, 2000);
+        String domainXml = msg == null ? null : new String(msg.getBody(), StandardCharsets.UTF_8);
+        assertThat(domainXml).contains("DomainPayment").contains("TXN-20240415-001");
 
         System.out.println();
         System.out.println("===== fx.payment.valid output begin =====");
@@ -137,14 +120,13 @@ class PaymentProcessingIntegrationTest {
         String rawXml = loadXml("messages/invalid-pacs009-missing-txid.xml");
         long countBefore = repository.findByStatus(PaymentStatus.INVALID).size();
 
-        rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE_NAME, RabbitConfig.ROUTING_KEY_INBOUND, rawXml);
+        sendXml(rawXml);
 
-        await().atMost(10, TimeUnit.SECONDS)
-                .untilAsserted(() -> {
-                    List<PaymentMessage> invalids = repository.findByStatus(PaymentStatus.INVALID);
-                    assertThat(invalids.size()).isGreaterThan((int) countBefore);
-                    assertThat(invalids.get(invalids.size() - 1).getValidationErrors()).isNotBlank();
-                });
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            List<PaymentMessage> invalids = repository.findByStatus(PaymentStatus.INVALID);
+            assertThat(invalids.size()).isGreaterThan((int) countBefore);
+            assertThat(invalids.get(invalids.size() - 1).getValidationErrors()).isNotBlank();
+        });
     }
 
     @Test
@@ -153,40 +135,42 @@ class PaymentProcessingIntegrationTest {
         String rawXml = loadXml("messages/invalid-pacs009-bad-currency.xml");
         long countBefore = repository.findByStatus(PaymentStatus.INVALID).size();
 
-        rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE_NAME, RabbitConfig.ROUTING_KEY_INBOUND, rawXml);
+        sendXml(rawXml);
 
-        await().atMost(10, TimeUnit.SECONDS)
-                .untilAsserted(() -> {
-                    assertThat(repository.findByStatus(PaymentStatus.INVALID).size())
-                            .isGreaterThan((int) countBefore);
-                });
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() ->
+            assertThat(repository.findByStatus(PaymentStatus.INVALID).size()).isGreaterThan((int) countBefore)
+        );
     }
 
     @Test
-    @DisplayName("Valid message: UUID in DB should match UUID in domain XML on valid queue")
+    @DisplayName("UUID in DB should match UUID embedded in domain XML on valid queue")
     void uuidShouldBeConsistentBetweenDbAndDomainXml() throws Exception {
         String rawXml = loadXml("messages/valid-pacs009.xml");
 
-        rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE_NAME, RabbitConfig.ROUTING_KEY_INBOUND, rawXml);
+        sendXml(rawXml);
 
-        // Step 1: wait for DB to be updated
-        await().atMost(10, TimeUnit.SECONDS)
-                .untilAsserted(() -> {
-                    var record = repository.findByTransactionId("TXN-20240415-001");
-                    assertThat(record).isPresent();
-                    assertThat(record.get().getStatus()).isEqualTo(PaymentStatus.PROCESSED);
-                });
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            var record = repository.findByTransactionId("TXN-20240415-001");
+            assertThat(record).isPresent();
+            assertThat(record.get().getStatus()).isEqualTo(PaymentStatus.PROCESSED);
+        });
 
-        // Step 2: get UUID from DB
         String persistedUuid = repository.findByTransactionId("TXN-20240415-001")
                 .orElseThrow().getId().toString();
 
-        // Step 3: read domain XML and verify UUID present
-        String domainXml = (String) rabbitTemplate.receiveAndConvert(RabbitConfig.VALID_QUEUE);
+        var msg = rabbitTemplate.receive(RabbitConfig.VALID_QUEUE, 2000);
+        String domainXml = msg == null ? null : new String(msg.getBody(), StandardCharsets.UTF_8);
         assertThat(domainXml).contains(persistedUuid);
     }
 
-    // ── Helper ────────────────────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────────────
+
+    private void sendXml(String rawXml) {
+        rabbitTemplate.send(RabbitConfig.EXCHANGE_NAME, RabbitConfig.ROUTING_KEY_INBOUND,
+                MessageBuilder.withBody(rawXml.getBytes(StandardCharsets.UTF_8))
+                        .setContentType(MessageProperties.CONTENT_TYPE_XML)
+                        .build());
+    }
 
     private String loadXml(String path) throws Exception {
         try (var is = getClass().getClassLoader().getResourceAsStream(path)) {
@@ -196,14 +180,8 @@ class PaymentProcessingIntegrationTest {
     }
 
     private void drainQueue(String queueName) {
-        long originalTimeout = jmsTemplate.getReceiveTimeout();
-        jmsTemplate.setReceiveTimeout(100);
-        try {
-            while (jmsTemplate.receiveAndConvert(queueName) != null) {
-                // Drain any message left by a previous test.
-            }
-        } finally {
-            jmsTemplate.setReceiveTimeout(originalTimeout);
+        while (rabbitTemplate.receive(queueName, 100) != null) {
+            // drain messages left by a previous test
         }
     }
 }

@@ -82,7 +82,6 @@ public class PaymentMessage {
     private String validationErrors;
 
     // ── raw payload (always stored for audit) ─────────────────────────────
-    @Lob
     @Column(name = "raw_xml", nullable = false, columnDefinition = "TEXT")
     private String rawXml;
 

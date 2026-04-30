@@ -1,9 +1,10 @@
 package com.fx.payment.service;
 
 import com.fx.payment.config.RabbitConfig;
-import com.fx.payment.model.domain.DomainPayment;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.core.MessageBuilder;
+import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 
@@ -11,12 +12,9 @@ import org.springframework.stereotype.Service;
  * Routes processed payment messages to the appropriate RabbitMQ queues.
  *
  * <ul>
- *   <li>{@code fx.payment.valid}   – valid domain payment XML</li>
- *   <li>{@code fx.payment.invalid} – rejected raw XML with error detail</li>
+ *   <li>{@code fx.payment.valid}   – converted domain payment XML</li>
+ *   <li>{@code fx.payment.invalid} – original raw pacs.009 XML with error detail</li>
  * </ul>
- *
- * <p>The {@link RabbitTemplate} is configured with transaction support,
- * so sends participate in any active local transaction.
  */
 @Service
 @Slf4j
@@ -24,34 +22,35 @@ import org.springframework.stereotype.Service;
 public class PaymentRoutingService {
 
     private final RabbitTemplate rabbitTemplate;
-    private final PaymentTransformationService transformationService;
 
     /**
-     * Serialises the domain payment to XML and publishes it to the valid queue.
+     * Publishes the converted domain payment XML to the valid queue.
      *
-     * @param domain the transformed domain payment object
+     * @param domainXml serialised {@code DomainPayment} XML string
+     * @param paymentId internal UUID for logging correlation
      */
-    public void routeValid(DomainPayment domain) {
-        String xml = transformationService.toXml(domain);
-        rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE_NAME, RabbitConfig.ROUTING_KEY_VALID, xml);
+    public void routeValid(String domainXml, String paymentId) {
+        rabbitTemplate.send(RabbitConfig.EXCHANGE_NAME, RabbitConfig.ROUTING_KEY_VALID,
+                MessageBuilder.withBody(domainXml.getBytes())
+                        .setContentType(MessageProperties.CONTENT_TYPE_XML)
+                        .build());
         log.info("Routed VALID payment to '{}'. paymentId={}",
-                RabbitConfig.VALID_QUEUE, domain.getPaymentId());
+                RabbitConfig.VALID_QUEUE, paymentId);
     }
 
     /**
-     * Publishes an invalid / rejected message to the dead-letter queue,
-     * including the validation error as a message property.
+     * Publishes the original raw pacs.009 XML to the invalid queue.
      *
-     * @param rawXml         the original XML that failed validation
+     * @param rawXml          the original XML that failed validation
      * @param validationError human-readable error description
      */
     public void routeInvalid(String rawXml, String validationError) {
-        rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE_NAME, RabbitConfig.ROUTING_KEY_INVALID, rawXml,
-                message -> {
-                    message.getMessageProperties().setHeader("ValidationError", truncate(validationError, 500));
-                    message.getMessageProperties().setHeader("MessageType", "pacs.009.001.08");
-                    return message;
-                });
+        rabbitTemplate.send(RabbitConfig.EXCHANGE_NAME, RabbitConfig.ROUTING_KEY_INVALID,
+                MessageBuilder.withBody(rawXml.getBytes())
+                        .setContentType(MessageProperties.CONTENT_TYPE_XML)
+                        .setHeader("ValidationError", truncate(validationError, 500))
+                        .setHeader("MessageType", "pacs.009.001.08")
+                        .build());
         log.warn("Routed INVALID message to '{}'. reason={}",
                 RabbitConfig.INVALID_QUEUE, truncate(validationError, 200));
     }

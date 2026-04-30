@@ -18,7 +18,6 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
-import static org.mockito.Mockito.*;
 
 /**
  * Unit tests for {@link PaymentOrchestrationService} using Mockito mocks.
@@ -62,13 +61,15 @@ class PaymentOrchestrationServiceTest {
         given(validationService.validateAndUnmarshal(RAW_XML)).willReturn(mockDoc);
         given(persistenceService.persistValidMessage(mockDoc, RAW_XML)).willReturn(savedEntity);
         given(transformationService.toDomainPayment(mockDoc, savedEntity)).willReturn(domainPayment);
+        given(transformationService.toXml(domainPayment)).willReturn("<DomainPayment/>");
 
         orchestrationService.process(RAW_XML);
 
         then(validationService).should(times(1)).validateAndUnmarshal(RAW_XML);
         then(persistenceService).should(times(1)).persistValidMessage(mockDoc, RAW_XML);
         then(transformationService).should(times(1)).toDomainPayment(mockDoc, savedEntity);
-        then(routingService).should(times(1)).routeValid(domainPayment);
+        then(transformationService).should(times(1)).toXml(domainPayment);
+        then(routingService).should(times(1)).routeValid(eq("<DomainPayment/>"), eq(PAYMENT_UUID.toString()));
         then(persistenceService).should(times(1)).updateStatus(PAYMENT_UUID, PaymentStatus.PROCESSED);
     }
 
@@ -78,6 +79,7 @@ class PaymentOrchestrationServiceTest {
         given(validationService.validateAndUnmarshal(RAW_XML)).willReturn(mockDoc);
         given(persistenceService.persistValidMessage(mockDoc, RAW_XML)).willReturn(savedEntity);
         given(transformationService.toDomainPayment(mockDoc, savedEntity)).willReturn(domainPayment);
+        given(transformationService.toXml(domainPayment)).willReturn("<DomainPayment/>");
 
         orchestrationService.process(RAW_XML);
 
@@ -108,7 +110,7 @@ class PaymentOrchestrationServiceTest {
         orchestrationService.process(RAW_XML);
 
         then(persistenceService).should(never()).persistValidMessage(any(), any());
-        then(routingService).should(never()).routeValid(any());
+        then(routingService).should(never()).routeValid(any(), any());
     }
 
     // ── Unexpected error ──────────────────────────────────────────────────
