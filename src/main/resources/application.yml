@@ -26,6 +26,12 @@ spring:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
+# ── File output ──────────────────────────────────────────────────────────
+fx:
+  payment:
+    output:
+      base-dir: target/output
+
 # ── Logging ──────────────────────────────────────────────────────────────
 logging:
   level:

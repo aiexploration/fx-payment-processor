@@ -25,6 +25,7 @@ public class PaymentRoutingService {
 
     private final RabbitTemplate rabbitTemplate;
     private final PaymentTransformationService transformationService;
+    private final PaymentFileStorageService fileStorageService;
 
     /**
      * Serialises the domain payment to XML and publishes it to the valid queue.
@@ -36,6 +37,7 @@ public class PaymentRoutingService {
         rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE_NAME, RabbitConfig.ROUTING_KEY_VALID, xml);
         log.info("Routed VALID payment to '{}'. paymentId={}",
                 RabbitConfig.VALID_QUEUE, domain.getPaymentId());
+        fileStorageService.saveValid(xml, domain);
     }
 
     /**
@@ -54,6 +56,7 @@ public class PaymentRoutingService {
                 });
         log.warn("Routed INVALID message to '{}'. reason={}",
                 RabbitConfig.INVALID_QUEUE, truncate(validationError, 200));
+        fileStorageService.saveInvalid(rawXml);
     }
 
     private String truncate(String s, int max) {

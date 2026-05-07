@@ -3,8 +3,8 @@
 <Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.009.001.08">
     <FIToFICstmrCdtTrf>
         <GrpHdr>
-            <MsgId>FX-MSG-20240415-001</MsgId>
-            <CreDtTm>2024-04-15T10:30:00</CreDtTm>
+            <MsgId>FX-MSG-20240415-333</MsgId>
+            <CreDtTm>2024-04-30T10:30:00</CreDtTm>
             <NbOfTxs>1</NbOfTxs>
             <SttlmInf>
                 <SttlmMtd>GROS</SttlmMtd>
@@ -15,10 +15,10 @@
                 <InstrId>INSTR-20240415-001</InstrId>
                 <EndToEndId>E2E-20240415-001</EndToEndId>
                 <TxId>TXN-20240415-001</TxId>
-                <UETR>a1b2c3d4-e5f6-4789-ab01-cd2345ef6789</UETR>
+                <UETR>d3e4f5a6-b7c8-4901-8e23-fa4567ab8901</UETR>
             </PmtId>
             <IntrBkSttlmAmt Ccy="USD">1250000.00</IntrBkSttlmAmt>
-            <IntrBkSttlmDt>2024-04-17</IntrBkSttlmDt>
+            <IntrBkSttlmDt>2024-04-30</IntrBkSttlmDt>
             <XchgRate>1.2650000000</XchgRate>
             <ChrgBr>SHAR</ChrgBr>
             <Dbtr>
