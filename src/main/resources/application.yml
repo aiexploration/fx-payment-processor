@@ -32,3 +32,13 @@ logging:
     com.fx.payment: DEBUG
     org.springframework.amqp: INFO
     com.rabbitmq: WARN
+
+# H2 Inspection disabled for PostgreSQL setup
+fx:
+  inspection:
+    h2:
+      enabled: false
+      tcp:
+        enabled: false
+      web:
+        enabled: false
